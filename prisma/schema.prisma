@@ -1,0 +1,147 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ──────────────────────────────────────────────
+
+enum IssueStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  CLOSED
+}
+
+enum IssuePriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ActivityType {
+  ISSUE_CREATED
+  STATUS_CHANGED
+  PRIORITY_CHANGED
+  ASSIGNEE_CHANGED
+  COMMENT_ADDED
+  LABEL_ADDED
+  LABEL_REMOVED
+}
+
+// ─── Models ─────────────────────────────────────────────
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String
+  description String?
+  orgId       String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  issues Issue[]
+  labels Label[]
+
+  @@unique([orgId, slug])
+  @@index([orgId])
+}
+
+model Issue {
+  id           String        @id @default(cuid())
+  number       Int
+  title        String
+  description  String?
+  status       IssueStatus   @default(OPEN)
+  priority     IssuePriority @default(MEDIUM)
+  projectId    String
+  creatorId    String
+  assigneeId   String?
+  duplicateOfId String?
+  voteCount    Int           @default(0)
+  commentCount Int           @default(0)
+  closedAt     DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  duplicateOf Issue?     @relation("Duplicates", fields: [duplicateOfId], references: [id], onDelete: SetNull)
+  duplicates  Issue[]    @relation("Duplicates")
+  comments    Comment[]
+  votes       Vote[]
+  labels      IssueLabel[]
+  activities  Activity[]
+
+  @@unique([projectId, number])
+  @@index([projectId, status])
+  @@index([projectId, priority])
+  @@index([creatorId])
+  @@index([assigneeId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  issueId   String
+  authorId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  issue Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@index([issueId])
+}
+
+model Vote {
+  id        String   @id @default(cuid())
+  issueId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  issue Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@unique([issueId, userId])
+  @@index([issueId])
+}
+
+model Label {
+  id        String       @id @default(cuid())
+  name      String
+  color     String
+  projectId String
+  createdAt DateTime     @default(now())
+
+  project Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  issues  IssueLabel[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+model IssueLabel {
+  issueId String
+  labelId String
+
+  issue Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  label Label @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([issueId, labelId])
+}
+
+model Activity {
+  id        String       @id @default(cuid())
+  type      ActivityType
+  issueId   String
+  userId    String
+  metadata  Json?
+  createdAt DateTime     @default(now())
+
+  issue Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@index([issueId])
+  @@index([userId])
+}
